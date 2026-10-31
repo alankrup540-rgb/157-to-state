@@ -1,0 +1,996 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#143A80">
+<meta name="description" content="Folkstyle season tracker for picking workouts, checking them off, and logging takedowns and weight.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="157 to State">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}body{margin:0;font:14px system-ui}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>157 to State</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap">
+<style>
+/* Layout: one narrow column read like a bout sheet. A mat-blue header holds the center circle
+   countdown and a to-scale season bar. Green and red are the referee's wristband colors:
+   green is you, red is the other wrestler. */
+:root{
+  --bg:#EDF1F6;--surface:#FFFFFF;--ink:#0F1B2D;--muted:#536378;--line:#D2DBE6;
+  --band:#143A80;--band-ink:#FFFFFF;--mat:#143A80;--mat-ink:#FFFFFF;--circle:#F2B705;
+  --green:#0B6E3D;--green-soft:#DCF0E5;--red:#B92323;--red-soft:#F9E0E0;--gold-soft:#FBEFC8;--gold-ink:#6B5000;
+  --display:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;
+  --body:"Barlow","Segoe UI",system-ui,-apple-system,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0B121E;--surface:#141D2C;--ink:#E8EDF5;--muted:#9EACBF;--line:#2A374C;
+  --band:#132B57;--band-ink:#FFFFFF;--mat:#7FAAF2;--mat-ink:#0B121E;--circle:#F2B705;
+  --green:#55CF90;--green-soft:#143626;--red:#F58A8A;--red-soft:#3C1A1D;--gold-soft:#3A3010;--gold-ink:#F4D977;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0B121E;--surface:#141D2C;--ink:#E8EDF5;--muted:#9EACBF;--line:#2A374C;
+  --band:#132B57;--band-ink:#FFFFFF;--mat:#7FAAF2;--mat-ink:#0B121E;--circle:#F2B705;
+  --green:#55CF90;--green-soft:#143626;--red:#F58A8A;--red-soft:#3C1A1D;--gold-soft:#3A3010;--gold-ink:#F4D977;
+  color-scheme:dark}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.5 var(--body);font-variant-numeric:tabular-nums}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.wrap{max-width:720px;margin-inline:auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--display);line-height:1.05;text-wrap:balance;margin:0}
+p{margin:0}
+ul,ol{margin:0;padding:0;list-style:none}
+button,input,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--circle);outline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+
+.hero{background:var(--band);color:var(--band-ink)}
+.hero-in{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-block:20px 12px}
+.hero-text{min-width:0}
+.eyebrow{font-weight:600;font-size:13px;letter-spacing:.1em;text-transform:uppercase;opacity:.85}
+.hero h1{font-size:clamp(44px,12vw,64px);font-weight:900;letter-spacing:.01em;text-transform:uppercase;margin-block:2px 6px}
+.hero-sub{font-size:15px;line-height:1.35;max-width:38ch}
+.ring{flex:none;width:112px;height:112px;border-radius:50%;border:8px solid var(--circle);display:grid;place-content:center;text-align:center;padding:4px}
+.ring b{font:900 38px/1 var(--display)}
+.ring span{font-size:11px;line-height:1.1;font-weight:600}
+.season{position:relative;padding-block:6px 30px}
+.bar{display:flex;gap:2px;height:10px}
+.seg{background:var(--band-ink);opacity:.25;min-width:0}
+.seg.past{opacity:.6}
+.seg.now{background:var(--circle);opacity:1}
+.marker{position:absolute;top:2px;width:3px;height:18px;margin-left:-1px;background:var(--band-ink)}
+.reg-tick{position:absolute;top:6px;width:2px;height:16px;background:var(--circle)}
+.reg-label{position:absolute;top:24px;transform:translateX(-50%);font-size:12px;font-weight:600;white-space:nowrap}
+
+.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+.tabs .wrap{display:flex}
+.tab{flex:1;min-width:0;background:none;border:0;border-bottom:4px solid transparent;padding:12px 2px 8px;font:800 19px/1.1 var(--display);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);cursor:pointer}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--mat)}
+
+main{display:grid;gap:16px;padding-block:16px 24px}
+#view{display:grid;gap:16px;min-width:0}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:4px;min-width:0}
+.pad{padding:14px}
+.panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.panel-head h2{font-size:25px;font-weight:800;letter-spacing:.02em;min-width:0}
+.tag{flex:none;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:3px;background:var(--gold-soft);color:var(--gold-ink)}
+
+.btn{min-height:44px;padding:9px 14px;border-radius:4px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-weight:600;font-size:15px;line-height:1.2;cursor:pointer}
+.btn.pri{background:var(--mat);border-color:var(--mat);color:var(--mat-ink)}
+.btn.good{background:var(--green-soft);border-color:var(--green);color:var(--green)}
+.btn.danger{background:var(--red-soft);border-color:var(--red);color:var(--red)}
+.btn.small{min-height:36px;padding:5px 10px;font-size:14px}
+.actions{display:flex;flex-wrap:wrap;gap:8px;padding:12px 14px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{min-height:38px;padding:6px 12px;border-radius:3px;border:1px solid var(--line);background:var(--surface);font-weight:600;font-size:14px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--mat);border-color:var(--mat);color:var(--mat-ink)}
+.chip.g[aria-pressed="true"]{background:var(--green);border-color:var(--green);color:var(--surface)}
+.chip.r[aria-pressed="true"]{background:var(--red);border-color:var(--red);color:var(--surface)}
+
+.weekbar{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.weekbar p{font-weight:600;min-width:0;text-align:center;line-height:1.2}
+.weekbar small{display:block;font-size:13px;font-weight:500;color:var(--muted)}
+.arrow{flex:none;width:44px;height:44px;border-radius:4px;border:1px solid var(--line);background:var(--surface);font-size:20px;font-weight:700;cursor:pointer}
+.strip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;margin-top:10px}
+.day{display:grid;justify-items:center;gap:1px;padding:6px 0 7px;border:1px solid var(--line);border-radius:4px;background:var(--surface);cursor:pointer;min-width:0}
+.day .dow{font-size:12px;font-weight:600;color:var(--muted)}
+.day .num{font:800 23px/1.1 var(--display)}
+.pips{width:64%;height:4px;background:var(--line);border-radius:2px;overflow:hidden}
+.pips i{display:block;height:100%;background:var(--green)}
+.day.today{border-color:var(--circle);box-shadow:inset 0 0 0 1px var(--circle)}
+.day[aria-pressed="true"]{background:var(--mat);border-color:var(--mat);color:var(--mat-ink)}
+.day[aria-pressed="true"] .dow{color:var(--mat-ink)}
+.day[aria-pressed="true"] .pips{background:var(--mat-ink);opacity:.9}
+.below-strip{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+
+.wk{border-bottom:1px solid var(--line)}
+.wk:last-child{border-bottom:0}
+.wk-head{display:flex;align-items:center;gap:8px;padding:4px 6px 4px 14px;min-height:60px}
+.wk-head>label{display:grid;place-items:center;width:32px;height:44px;flex:none;cursor:pointer}
+input[type="checkbox"]{width:22px;height:22px;margin:0;accent-color:var(--green);cursor:pointer}
+.wk-name{flex:1;min-width:0;text-align:left;background:none;border:0;padding:6px 2px;cursor:pointer}
+.wk-title{display:block;font-weight:700;font-size:17px;line-height:1.2}
+.wk-meta{display:block;font-size:13px;color:var(--muted);line-height:1.3}
+.wk.is-done .wk-title{color:var(--muted);text-decoration:line-through;text-decoration-thickness:1px}
+.x{flex:none;width:40px;height:44px;background:none;border:0;color:var(--muted);font-size:22px;line-height:1;cursor:pointer}
+.wk-items{padding:0 14px 12px 54px;display:grid;gap:2px}
+.wk-items label{display:flex;gap:10px;align-items:flex-start;padding:5px 0;cursor:pointer;line-height:1.3}
+.wk-items input{flex:none;width:20px;height:20px}
+.empty-note{padding:12px 14px;color:var(--muted);font-size:15px}
+.suggest-title{padding:12px 14px 4px;font-weight:700}
+.sug{display:flex;align-items:center;gap:10px;padding:8px 14px;border-top:1px solid var(--line)}
+.sug:first-of-type{border-top:0}
+.sug div{flex:1;min-width:0}
+
+.fields{display:grid;gap:14px}
+.field{display:grid;gap:5px;min-width:0}
+.field>label,.field>.lbl{font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.input{width:100%;min-width:0;min-height:44px;padding:8px 10px;border-radius:4px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+textarea.input{min-height:76px;resize:vertical;line-height:1.4}
+.two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.alert{padding:10px 14px;border-radius:4px;border:1px solid var(--red);background:var(--red-soft);color:var(--ink);font-size:15px;line-height:1.4}
+
+.lib-tools{display:grid;gap:12px}
+.group-title{font-size:25px;font-weight:800;letter-spacing:.02em;text-transform:uppercase}
+.lib-list{display:grid;gap:8px}
+.lib-group{display:grid;gap:8px}
+.lib{padding:12px 14px;display:grid;gap:8px}
+.lib-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.lib-top>div{min-width:0}
+.lib h3{font:700 18px/1.2 var(--body)}
+.lib .sum{font-size:14px;color:var(--muted);line-height:1.3}
+.lib ul{display:grid;gap:2px;font-size:15px;line-height:1.3}
+.lib li{padding-left:14px;position:relative}
+.lib li::before{content:"";position:absolute;left:0;top:.5em;width:6px;height:6px;border-radius:50%;background:var(--mat)}
+.now-tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--gold-ink);background:var(--gold-soft);padding:0 6px;border-radius:3px;margin-left:4px;vertical-align:2px}
+.add-own{display:flex;gap:8px;align-items:flex-end}
+.add-own .field{flex:1}
+
+.score{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+.score>div{padding:12px 14px;border-right:1px solid var(--line);min-width:0}
+.score>div:last-child{border-right:0}
+.score b{display:block;font:900 40px/1 var(--display)}
+.score span{font-size:13px;font-weight:600;color:var(--muted);line-height:1.2;display:block}
+.score .g b{color:var(--green)}
+.score .r b{color:var(--red)}
+.leak{padding:12px 14px;border-top:1px solid var(--line);line-height:1.4}
+.leak strong{display:block}
+.match{padding:10px 14px;border-top:1px solid var(--line)}
+.match:first-child{border-top:0}
+.match h3{font:700 16px/1.3 var(--body)}
+.match h3 small{font-weight:500;color:var(--muted);font-size:14px}
+.td{display:flex;align-items:center;gap:10px;padding:5px 0;min-height:40px}
+.pt{flex:none;font:800 16px/1 var(--display);padding:5px 6px;border-radius:3px}
+.pt.for{background:var(--green-soft);color:var(--green)}
+.pt.against{background:var(--red-soft);color:var(--red)}
+.td div{flex:1;min-width:0;line-height:1.25;overflow-wrap:anywhere}
+.td small{display:block;color:var(--muted);font-size:13px}
+.wt-row{display:flex;justify-content:space-between;gap:10px;padding:6px 14px;border-top:1px solid var(--line)}
+
+#plan{background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:18px 16px 20px;min-width:0}
+.doc{display:grid;gap:26px}
+.doc section{display:grid;gap:10px;min-width:0}
+.doc h2{font-size:28px;font-weight:800;letter-spacing:.02em;text-transform:uppercase}
+.doc h3{font:700 16px/1.3 var(--body)}
+.doc p,.doc li{max-width:65ch}
+.doc ul.dots,.doc ol.steps{display:grid;gap:6px}
+.doc ul.dots li{position:relative;padding-left:14px}
+.doc ul.dots li::before{content:"";position:absolute;left:0;top:.6em;width:6px;height:6px;border-radius:50%;background:var(--mat)}
+.doc ol.steps{counter-reset:s}
+.doc ol.steps li{counter-increment:s;position:relative;padding-left:30px}
+.doc ol.steps li::before{content:counter(s);position:absolute;left:0;top:1px;width:21px;height:21px;border-radius:50%;background:var(--mat);color:var(--mat-ink);font:800 14px/21px var(--display);text-align:center}
+.doc a{color:var(--mat);overflow-wrap:anywhere}
+.bracket{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.round{position:relative;border:1px solid var(--line);border-radius:4px;padding:8px 10px;display:grid;gap:1px;min-width:0}
+.round:not(:last-child)::after{content:"";position:absolute;right:-15px;top:50%;width:14px;border-top:2px solid var(--mat)}
+.round b{font:800 21px/1.1 var(--display);text-transform:uppercase;letter-spacing:.02em}
+.round span{font-size:13px;line-height:1.25;color:var(--muted)}
+.round.goal{border-color:var(--circle);background:var(--gold-soft)}
+.round.goal span{color:var(--gold-ink)}
+.tscroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:15px;line-height:1.3}
+th,td{text-align:left;vertical-align:top;padding:7px 10px 7px 0;border-bottom:1px solid var(--line)}
+th{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+td:first-child{white-space:nowrap;font-weight:700}
+details{border:1px solid var(--line);border-radius:4px}
+details summary{cursor:pointer;padding:10px 12px;font-weight:700}
+details .tscroll{padding:0 12px 8px}
+.detail-stack{display:grid;gap:8px}
+
+footer{padding-block:0 28px;font-size:13px;color:var(--muted)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--muted);margin-right:6px}
+.dot.ok{background:var(--green)}
+.dot.warn{background:var(--circle)}
+.install{padding:10px 14px;border:1px solid var(--circle);border-radius:4px;background:var(--gold-soft);color:var(--ink);font-size:15px;line-height:1.4}
+.toast{position:fixed;z-index:20;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));max-width:420px;margin-inline:auto;padding:10px 14px;border-radius:4px;background:var(--ink);color:var(--surface);font-weight:600;text-align:center}
+@media (max-width:420px){
+  .two{grid-template-columns:minmax(0,1fr)}
+  .ring{width:96px;height:96px;border-width:7px}
+  .ring b{font-size:32px}
+  .ring span{font-size:10px}
+  .tab{font-size:17px}
+}
+@media (max-width:480px){
+  .bracket{grid-template-columns:minmax(0,1fr);gap:12px}
+  .round:not(:last-child)::after{right:auto;left:20px;top:auto;bottom:-13px;width:0;height:12px;border-top:0;border-left:2px solid var(--mat)}
+}
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap hero-in">
+    <div class="hero-text">
+      <p class="eyebrow">157 lb · Folkstyle · IHSA</p>
+      <h1>157 to State</h1>
+      <p class="hero-sub" id="hero-sub"></p>
+    </div>
+    <div class="ring" id="ring"></div>
+  </div>
+  <div class="wrap"><div class="season" id="season"></div></div>
+</header>
+
+<nav class="tabs" aria-label="Sections">
+  <div class="wrap" role="tablist">
+    <button class="tab" role="tab" id="tab-train" data-tab="train">Train</button>
+    <button class="tab" role="tab" id="tab-workouts" data-tab="workouts">Workouts</button>
+    <button class="tab" role="tab" id="tab-plan" data-tab="plan">Plan</button>
+    <button class="tab" role="tab" id="tab-log" data-tab="log">Log</button>
+  </div>
+</nav>
+
+<main class="wrap">
+  <p class="install" id="install" hidden></p>
+  <div id="view"></div>
+
+  <article id="plan" hidden>
+    <div class="doc">
+      <section>
+        <h2>The target</h2>
+        <div class="bracket">
+          <div class="round"><b>Regionals</b><span>Feb 6</span><span>Top 4 advance</span></div>
+          <div class="round"><b>Sectionals</b><span>Date to confirm</span><span>Top 4 qualify</span></div>
+          <div class="round goal"><b>State</b><span>Date to confirm</span><span>Champaign</span><span>This year's goal</span></div>
+        </div>
+        <p>Takedowns are worth 3 and near falls go up to 4, so a takedown into a 4-count is 7 points. That fits your shooting and back-exposure style, and it's why neutral gets the most extra work.</p>
+      </section>
+
+      <section>
+        <h2>Season phases</h2>
+        <div class="tscroll"><table>
+          <thead><tr><th>Phase</th><th>Dates</th><th>Focus</th></tr></thead>
+          <tbody id="phase-rows"></tbody>
+        </table></div>
+      </section>
+
+      <section>
+        <h2>Suggested weeks</h2>
+        <p>The Train tab can fill any week with these, and you can swap anything after. If soccer is still going, it replaces the Wednesday and Saturday sprints. If a dual lands the day after a lift, move the lift.</p>
+        <div class="detail-stack" id="week-tables"></div>
+      </section>
+
+      <section>
+        <h2>In-season rules</h2>
+        <p>Team practice comes first, and your coach's schedule beats this one.</p>
+        <ul class="dots">
+          <li>Lift twice a week for 30 minutes, doing only the first two lifts of A or B at 3 sets each.</li>
+          <li>Don't lift hard the day before a competition.</li>
+          <li>Do neutral work three days a week.</li>
+          <li>Take Sunday off.</li>
+          <li>Only add conditioning if practice was easy.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Neutral work</h2>
+        <p>Pick your two best shots and two setups for each. Shoot off a tie or after moving their head, not from open space.</p>
+        <ol class="steps">
+          <li><strong>Motion, 3 min:</strong> stance, level changes and circling.</li>
+          <li><strong>Setups, 5 min:</strong> setup into shot at full speed, 10 reps each side.</li>
+          <li><strong>Finishes, 4 min:</strong> start on the leg with your partner fighting back, then finish straight into a tilt or cradle.</li>
+          <li><strong>Defense, 3 min:</strong> sprawl, whizzer, head down, spin behind.</li>
+        </ol>
+        <p>Twice a week, also do 5 x 1-minute neutral-only goes and restart after every takedown. Include one go starting down 1 with 30 seconds left.</p>
+      </section>
+
+      <section>
+        <h2>Takedown log</h2>
+        <p>After every match, add each takedown for or against you on the Log tab. "Neutral" could mean getting shot on, or getting caught on your own shots, and those need different fixes. After 5 matches, spend most of your drill time on the biggest leak the log shows.</p>
+      </section>
+
+      <section>
+        <h2>Weight</h2>
+        <ul class="dots">
+          <li>Gain about half a pound a week until you're near 157, and don't cut.</li>
+          <li>Eat three meals and two snacks, with about 110-150 g of protein a day.</li>
+          <li>Sleep at least 8 hours.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Back and neck</h2>
+        <p>Do the 5-minute routine after training. In your stance, bend at the hips instead of rounding your lower back. Skip heavy back squats and regular deadlifts until your back feels normal.</p>
+        <div class="alert">
+          <p><strong>See a trainer or doctor if</strong> it's still sore after 2 weeks, or it hurts when you arch or bridge. Lower back stress fractures are common in teen wrestlers.</p>
+          <p><strong>Stop wrestling until you're checked</strong> if you get numbness, tingling, weakness or pain shooting down an arm or leg.</p>
+        </div>
+      </section>
+
+      <section>
+        <h2>Peak</h2>
+        <ul class="dots">
+          <li><strong>From Jan 25:</strong> cut drilling by about a third, but keep it fast. Lift once a week, and go light.</li>
+          <li><strong>Week of each postseason meet:</strong> no hard lifting, and keep the last 3 days short and quick.</li>
+          <li><strong>Regionals:</strong> try to win yours, since placing higher usually means a better sectional draw.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Check with your coach</h2>
+        <ul class="dots">
+          <li><strong>Regionals:</strong> Feb 6 is from the boys' IHSA schedule.</li>
+          <li><strong>First practice:</strong> Nov 9 comes from another school district's calendar, so yours could differ.</li>
+          <li><strong>Sectionals and state:</strong> the 2027 dates and your sectional site aren't confirmed.</li>
+          <li><strong>Scoring:</strong> those values date from 2024-25. Changes for 2026-27 weren't confirmed.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Sources</h2>
+        <ul class="dots">
+          <li><a href="https://nfhs.org/resources/sports/wrestling-rules-changes-2024-25" target="_blank" rel="noopener">NFHS 2024-25 rule changes</a></li>
+          <li><a href="https://sports.yahoo.com/articles/2026-ihsa-illinois-wrestling-state-140637751.html" target="_blank" rel="noopener">Yahoo Sports: 2026 IHSA state format</a></li>
+          <li><a href="https://www.flowrestling.org/articles/15389805-2026-ihsa-illinois-wrestling-state-finals-schedule-and-brackets" target="_blank" rel="noopener">FloWrestling: 2026 IHSA schedule</a></li>
+          <li><a href="https://pubt.io/view/15BC3EBA1943E942D66DA07E989A075EA41D29FF" target="_blank" rel="noopener">IHSA announcement</a></li>
+          <li><a href="https://www.d120.org/assets/1/6/2026-27_SPORT_SEASON_START_DATES.pdf" target="_blank" rel="noopener">District 120 2026-27 season start dates</a></li>
+        </ul>
+      </section>
+    </div>
+  </article>
+</main>
+
+<footer class="wrap"><span id="sync"></span></footer>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------- Plan data ---------- */
+  const PHASES = [
+    { k: 'pre', name: 'Preseason', start: '2026-10-30', end: '2026-11-08', focus: 'Rebuild your stance, add strength, train hard bursts', week: 'pre' },
+    { k: 'early', name: 'Early season', start: '2026-11-09', end: '2026-12-20', focus: 'Build your neutral system', week: 'season' },
+    { k: 'mid', name: 'Midseason', start: '2026-12-21', end: '2027-01-24', focus: 'Test it in tournaments and fix what the log shows', week: 'season' },
+    { k: 'peak', name: 'Peak', start: '2027-01-25', end: '2027-02-06', focus: 'Do less volume, stay fast', week: 'peak' },
+    { k: 'post', name: 'Postseason', start: '2027-02-07', end: '2027-02-28', focus: 'Stay short, sharp and rested', week: 'post' }
+  ];
+  const REGIONALS = '2027-02-06';
+
+  const CATS = { lift: 'Lift', mat: 'Mat', cond: 'Conditioning', care: 'Recovery' };
+  const W = {
+    liftA: { cat: 'lift', name: 'Lift A', min: 45, sum: 'Full session for the preseason.', items: ['Trap bar deadlift 4x4', 'Bench 3x6', 'Pull-ups 3x6-8', 'Farmer carries 3x40 yd'] },
+    liftB: { cat: 'lift', name: 'Lift B', min: 45, sum: 'Full session for the preseason.', items: ['Front squat 4x5', 'Split squats 3x8 per leg', 'Rows 3x8', 'Rope climbs or towel pull-ups, 3 sets'] },
+    liftAin: { cat: 'lift', name: 'Lift A, in-season', min: 30, sum: 'First two lifts only, 3 sets each.', items: ['Trap bar deadlift 3x4', 'Bench 3x6'] },
+    liftBin: { cat: 'lift', name: 'Lift B, in-season', min: 30, sum: 'First two lifts only, 3 sets each.', items: ['Front squat 3x5', 'Split squats 3x8 per leg'] },
+    liftLight: { cat: 'lift', name: 'Light lift', min: 20, sum: 'Once a week in the peak. Leave feeling fresh.', items: ['Trap bar deadlift 2x3, light', 'Bench 2x5, light', 'Pull-ups 2x5'] },
+
+    neutral: { cat: 'mat', name: 'Neutral work', min: 15, sum: 'Your main extra work. Do it three days a week.', items: ['Motion, 3 min: stance, level changes, circling', 'Setups, 5 min: setup into shot at full speed, 10 reps each side', 'Finishes, 4 min: partner fights back, finish into a tilt or cradle', 'Defense, 3 min: sprawl, whizzer, head down, spin behind'] },
+    neutralShort: { cat: 'mat', name: 'Neutral work, short', min: 10, sum: 'About a third less drilling for the peak. Keep it fast.', items: ['Motion, 2 min', 'Setups, 3 min', 'Finishes, 3 min', 'Defense, 2 min'] },
+    goes: { cat: 'mat', name: 'Neutral-only goes', min: 10, sum: 'Twice a week. Restart after every takedown.', items: ['Go 1, 1 minute', 'Go 2, 1 minute', 'Go 3, 1 minute', 'Go 4, 1 minute', 'Go 5: start down 1 with 30 seconds left'] },
+    stance: { cat: 'mat', name: 'Stance and motion', min: 15, sum: 'Gets your stance back. Bend at the hips, not your lower back.', items: ['Stance and motion, 3 x 2 min', 'Level changes, 3 x 30 sec', 'Penetration steps, 3 x 10 per side', 'Circle and snap, 3 x 1 min'] },
+    club1: { cat: 'mat', name: 'Club: neutral focus', min: 90, sum: 'Use your drilling time on your two main shots.', items: [] },
+    club2: { cat: 'mat', name: 'Club: live goes', min: 90, sum: 'Try your setups live, even if they fail.', items: [] },
+    practice: { cat: 'mat', name: 'Team practice', min: 120, sum: 'Comes first during the season.', items: [] },
+    meet: { cat: 'mat', name: 'Dual or tournament', min: null, sum: 'Add every takedown to your log afterward.', items: [] },
+    film: { cat: 'mat', name: 'Film and log review', min: 20, sum: 'For the peak and postseason.', items: ['Read your takedown log', 'Watch film of one likely sectional opponent'] },
+
+    track: { cat: 'cond', name: '200s', min: 25, sum: 'Walk 90 sec between reps.', items: ['6 x 200 m hard'] },
+    hills: { cat: 'cond', name: 'Hill sprints', min: 20, sum: 'Walk back down between reps.', items: ['8 x 25-sec hill sprints'] },
+    finisher: { cat: 'cond', name: 'Match-pace finisher', min: 10, sum: 'Only if practice was easy.', items: ['Round 1: 2 min of hard shots and sprawls, 1 min rest', 'Round 2: 2 min hard, 1 min rest', 'Round 3: 2 min hard'] },
+    soccer: { cat: 'cond', name: 'Soccer', min: 90, sum: 'Replaces sprints while your season is going.', items: [] },
+
+    back: { cat: 'care', name: 'Back and neck', min: 5, sum: 'After every training session.', items: ['Cat-cow x10', 'Couch stretch, 1 min per side', 'Dead bug 2x10', 'Side plank 2x30 sec', 'Neck holds in 4 directions, 3x15 sec'] },
+    rest: { cat: 'care', name: 'Rest day', min: null, sum: 'Take it. This is when you recover.', items: [] }
+  };
+
+  const WEEKS = {
+    pre: [['liftA', 'stance', 'back'], ['club1', 'back'], ['track', 'back'], ['club2', 'back'], ['liftB', 'stance', 'back'], ['hills', 'back'], ['rest']],
+    season: [['practice', 'liftAin', 'neutral', 'back'], ['practice', 'goes', 'back'], ['practice', 'liftBin', 'neutral', 'back'], ['practice', 'goes', 'back'], ['practice', 'neutral', 'back'], ['meet', 'back'], ['rest']],
+    peak: [['practice', 'liftLight', 'neutralShort', 'back'], ['practice', 'goes', 'back'], ['practice', 'neutralShort', 'film', 'back'], ['practice', 'back'], ['practice', 'back'], ['meet', 'back'], ['rest']],
+    post: [['practice', 'neutralShort', 'film', 'back'], ['practice', 'neutralShort', 'back'], ['practice', 'back'], ['practice', 'back'], ['meet', 'back'], ['meet', 'back'], ['rest']]
+  };
+  const WEEK_NAMES = { pre: 'Preseason week', season: 'Early season and midseason week', peak: 'Peak week', post: 'Postseason week' };
+
+  const HOW = {
+    for: ['Single', 'Double', 'High crotch', 'Snap or go-behind', 'Scramble', 'Other'],
+    against: ['They shot on me', 'Caught on my shot', 'Scramble', 'Snap or go-behind', 'Other']
+  };
+  const FIX = {
+    'They shot on me': 'Hand-fight first, and add sprawl, whizzer and spin-behind reps.',
+    'Caught on my shot': 'Shoot off a tie or after moving their head. Put your drill time into setups and finishes.',
+    'Scramble': 'Drill finishes with your partner fighting back, and work on ending scrambles on top.',
+    'Snap or go-behind': 'Clean up your stance: hips under you, head up, hands active.',
+    'Other': 'Read your notes and look for what keeps repeating.'
+  };
+
+  /* ---------- Dates ---------- */
+  const pad = n => String(n).padStart(2, '0');
+  const iso = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  const parse = s => { const p = s.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); };
+  const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); };
+  const diff = (a, b) => Math.round((parse(b) - parse(a)) / 864e5);
+  const monday = s => addDays(s, -((parse(s).getDay() + 6) % 7));
+  const fmt = (s, o) => parse(s).toLocaleDateString('en-US', o);
+  const short = s => fmt(s, { month: 'short', day: 'numeric' });
+  const dayLabel = s => fmt(s, { weekday: 'short', month: 'short', day: 'numeric' });
+  const TODAY = iso(new Date());
+
+  const phaseOf = s => {
+    if (s < PHASES[0].start) return PHASES[0];
+    return PHASES.find(p => s <= p.end) || PHASES[PHASES.length - 1];
+  };
+
+  /* ---------- State ---------- */
+  const LS = 'wrestle157.v1';
+  const S = { days: {}, tds: {} };
+  const UI = {
+    tab: 'train', date: TODAY, filter: 'all', exp: {}, arm: null,
+    form: { date: TODAY, opp: '', side: 'for', how: 'Single', note: '' }
+  };
+  const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const clone = o => JSON.parse(JSON.stringify(o));
+  const $ = id => document.getElementById(id);
+
+  function loadLocal() {
+    try {
+      const raw = localStorage.getItem(LS);
+      if (raw) { const v = JSON.parse(raw); S.days = v.days || {}; S.tds = v.tds || {}; }
+    } catch (e) { /* render without it */ }
+  }
+  function saveLocal() {
+    try { localStorage.setItem(LS, JSON.stringify(S)); } catch (e) { /* page still works */ }
+  }
+
+  const dayOf = d => S.days[d] || { picks: [], ticks: {}, note: '', weight: null, back: null };
+  function ensureDay(d) {
+    if (!S.days[d]) S.days[d] = { picks: [], ticks: {}, note: '', weight: null, back: null };
+    return S.days[d];
+  }
+  const isEmptyDay = d => !d.picks.length && !d.note && d.weight == null && !d.back;
+
+  function getW(key) {
+    if (key.indexOf('custom:') === 0) return { cat: 'custom', name: key.slice(7), min: null, sum: 'Your own workout.', items: [] };
+    return W[key] || { cat: 'custom', name: key, min: null, sum: '', items: [] };
+  }
+  const total = key => Math.max(getW(key).items.length, 1);
+  const doneCount = (day, key) => ((day.ticks || {})[key] || []).length;
+  const isDone = (day, key) => doneCount(day, key) >= total(key);
+  const suggested = d => WEEKS[phaseOf(d).week][(parse(d).getDay() + 6) % 7];
+  const metaOf = w => [w.cat === 'custom' ? 'Custom' : CATS[w.cat], w.min ? w.min + ' min' : null].filter(Boolean).join(' · ');
+
+  /* ---------- Saving ---------- */
+  let db = null, localOnly = false, sync = 'local', slowTimer = null, flushTimer = null, flushing = false, needsPaint = false;
+  const dirty = new Set();
+  const seeded = { days: false, tds: false };
+
+  function setSync(v) {
+    sync = v;
+    const map = {
+      connecting: ['warn', 'Connecting to your saved workouts'],
+      slow: ['warn', "Can't reach your saved workouts yet. Changes stay on this device for now."],
+      cloud: ['ok', 'Saved to your account'],
+      retry: ['warn', "Couldn't save yet. Trying again."],
+      local: ['ok', 'Saved on this phone']
+    };
+    const m = map[v];
+    $('sync').innerHTML = '<span class="dot ' + m[0] + '"></span>' + esc(m[1]);
+  }
+  function schedule(ms) {
+    clearTimeout(flushTimer);
+    flushTimer = setTimeout(flush, ms == null ? 500 : ms);
+  }
+  function touch(id) {
+    dirty.add(id);
+    saveLocal();
+    if (db && !localOnly) schedule();
+  }
+  function writeErr(e) {
+    const c = e && e.code;
+    if (['invalid_argument', 'not_granted', 'revoked', 'capability_disabled', 'capability_removed', 'transform_error'].indexOf(c) >= 0) {
+      localOnly = true; setSync('local'); toast('Saving on this device only.');
+    } else if (c === 'quota_exceeded') {
+      toast('Storage is full. Delete old entries to keep saving.');
+    } else {
+      setSync('retry');
+    }
+  }
+  async function flush() {
+    if (!db || localOnly || flushing) return;
+    flushing = true;
+    for (const id of Array.from(dirty)) {
+      dirty.delete(id);
+      const d = S.days[id];
+      const ref = db.collection('days').doc(id);
+      try {
+        if (d && !isEmptyDay(d)) await ref.set(clone(d)); else await ref.delete();
+        if (sync === 'retry') setSync('cloud');
+      } catch (e) { dirty.add(id); writeErr(e); break; }
+    }
+    flushing = false;
+    if (dirty.size && !localOnly) schedule(sync === 'retry' ? 4000 : 500);
+  }
+  async function saveTd(id) {
+    saveLocal();
+    if (!db || localOnly) return;
+    try { await db.collection('takedowns').doc(id).set(clone(S.tds[id])); } catch (e) { writeErr(e); }
+  }
+  async function delTd(id) {
+    saveLocal();
+    if (!db || localOnly) return;
+    try { await db.collection('takedowns').doc(id).delete(); } catch (e) { writeErr(e); }
+  }
+  function settle(s) {
+    if (!s.metadata.fromCache) {
+      clearTimeout(slowTimer);
+      if (sync === 'connecting' || sync === 'slow') setSync('cloud');
+    }
+  }
+  function onDays(s) {
+    if (localOnly) return;
+    settle(s);
+    if (s.metadata.fromCache && s.empty) return;
+    if (!seeded.days && !s.metadata.fromCache) {
+      seeded.days = true;
+      if (s.empty && Object.keys(S.days).length) { Object.keys(S.days).forEach(id => dirty.add(id)); schedule(); return; }
+    }
+    const next = {};
+    s.docs.forEach(d => { next[d.id] = clone(d.data()); });
+    dirty.forEach(id => { if (S.days[id]) next[id] = S.days[id]; else delete next[id]; });
+    S.days = next;
+    saveLocal();
+    paint(true);
+  }
+  function onTds(s) {
+    if (localOnly) return;
+    settle(s);
+    if (s.metadata.fromCache && s.empty) return;
+    if (!seeded.tds && !s.metadata.fromCache) {
+      seeded.tds = true;
+      if (s.empty && Object.keys(S.tds).length) { Object.keys(S.tds).reduce((p, id) => p.then(() => saveTd(id)), Promise.resolve()); return; }
+    }
+    const next = {};
+    s.docs.forEach(d => { next[d.id] = clone(d.data()); });
+    S.tds = next;
+    saveLocal();
+    paint(true);
+  }
+  function onErr(e) {
+    clearTimeout(slowTimer);
+    localOnly = true;
+    setSync('local');
+  }
+  async function connect() {
+    let found = null;
+    try { found = window.claude && window.claude.use ? await window.claude.use('db') : null; } catch (e) { found = null; }
+    if (!found) { setSync('local'); return; }
+    db = found;
+    setSync('connecting');
+    slowTimer = setTimeout(() => { if (sync === 'connecting') setSync('slow'); }, 10000);
+    db.collection('days').onSnapshot(onDays, onErr);
+    db.collection('takedowns').onSnapshot(onTds, onErr);
+    if (dirty.size) schedule();
+  }
+
+  /* ---------- Rendering ---------- */
+  let toastTimer = null;
+  function toast(msg) {
+    const t = $('toast');
+    t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.hidden = true; }, 2400);
+  }
+
+  function paintHeader() {
+    const p = phaseOf(TODAY);
+    $('hero-sub').textContent = p.name + ': ' + p.focus;
+    const left = diff(TODAY, REGIONALS);
+    $('ring').innerHTML = left >= 0
+      ? '<b>' + left + '</b><span>' + (left === 1 ? 'day' : 'days') + ' to regionals</span>'
+      : '<b>Go</b><span>Postseason</span>';
+    $('ring').setAttribute('role', 'img');
+    $('ring').setAttribute('aria-label', left >= 0 ? left + ' days to regionals' : 'Postseason');
+
+    const first = PHASES[0].start, last = PHASES[PHASES.length - 1].end;
+    const span = diff(first, last) + 1;
+    const pct = s => Math.min(100, Math.max(0, diff(first, s) / span * 100));
+    const segs = PHASES.map(ph => {
+      const cls = TODAY > ph.end ? 'past' : (TODAY >= ph.start ? 'now' : '');
+      return '<div class="seg ' + cls + '" style="flex:' + (diff(ph.start, ph.end) + 1) + ' 0 0" title="' + esc(ph.name) + '"></div>';
+    }).join('');
+    $('season').innerHTML = '<div class="bar" role="img" aria-label="Season timeline, currently ' + esc(p.name) + '">' + segs + '</div>' +
+      '<i class="marker" style="left:' + pct(TODAY).toFixed(2) + '%"></i>' +
+      '<i class="reg-tick" style="left:' + pct(REGIONALS).toFixed(2) + '%"></i>' +
+      '<span class="reg-label" style="left:' + pct(REGIONALS).toFixed(2) + '%">Regionals, Feb 6</span>';
+  }
+
+  function paintPlanTables() {
+    $('phase-rows').innerHTML = PHASES.map(p =>
+      '<tr><td>' + esc(p.name) + '</td><td>' + short(p.start) + ' to ' + short(p.end) + '</td><td>' + esc(p.focus) + '</td></tr>').join('');
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const cur = phaseOf(TODAY).week;
+    $('week-tables').innerHTML = Object.keys(WEEKS).map(k =>
+      '<details' + (k === cur ? ' open' : '') + '><summary>' + esc(WEEK_NAMES[k]) + '</summary><div class="tscroll"><table><tbody>' +
+      WEEKS[k].map((list, i) => '<tr><td>' + days[i] + '</td><td>' + list.map(x => esc(W[x].name)).join(', ') + '</td></tr>').join('') +
+      '</tbody></table></div></details>').join('');
+  }
+
+  function rowWorkout(date, key, autoOpen) {
+    const day = dayOf(date), w = getW(key), done = isDone(day, key), id = date + '|' + key;
+    const open = w.items.length > 0 && (id in UI.exp ? UI.exp[id] : key === autoOpen);
+    const ticks = (day.ticks || {})[key] || [];
+    const k = esc(key);
+    const progress = w.items.length ? ' · ' + ticks.length + '/' + w.items.length : '';
+    return '<li class="wk ' + (done ? 'is-done' : '') + '"><div class="wk-head">' +
+      '<label><input type="checkbox" id="all-' + k + '" data-chg="all" data-key="' + k + '" ' + (done ? 'checked' : '') + '><span class="sr">Mark ' + esc(w.name) + ' done</span></label>' +
+      '<button class="wk-name" data-act="exp" data-key="' + k + '"' + (w.items.length ? ' aria-expanded="' + open + '"' : '') + '>' +
+      '<span class="wk-title">' + esc(w.name) + '</span><span class="wk-meta">' + esc(metaOf(w)) + progress + '</span></button>' +
+      '<button class="x" data-act="rm" data-key="' + k + '" aria-label="Remove ' + esc(w.name) + '">×</button></div>' +
+      (open ? '<ol class="wk-items">' + w.items.map((t, i) =>
+        '<li><label><input type="checkbox" id="t-' + k + '-' + i + '" data-chg="tick" data-key="' + k + '" data-i="' + i + '" ' + (ticks.indexOf(i) >= 0 ? 'checked' : '') + '><span>' + esc(t) + '</span></label></li>').join('') + '</ol>' : '') +
+      '</li>';
+  }
+
+  function backNotice() {
+    const dates = Object.keys(S.days).filter(d => S.days[d].back).sort();
+    if (!dates.length) return '';
+    const last = dates[dates.length - 1], v = S.days[last].back;
+    if (v === 'good') return '';
+    if (v === 'hurts') return '<div class="alert"><strong>Your back hurts.</strong> If it hurts when you arch or bridge, see a trainer or doctor. If you have numbness, tingling, weakness or pain shooting down an arm or leg, stop wrestling until you\'re checked.</div>';
+    let start = last;
+    for (let i = dates.length - 2; i >= 0; i--) {
+      if (S.days[dates[i]].back === 'good') break;
+      start = dates[i];
+    }
+    if (diff(start, last) >= 14) return '<div class="alert"><strong>Your back has been sore for 2 weeks.</strong> Show it to your trainer or a doctor.</div>';
+    return '';
+  }
+
+  function vTrain() {
+    const sel = UI.date, mon = monday(sel), dates = [0, 1, 2, 3, 4, 5, 6].map(i => addDays(mon, i));
+    const day = dayOf(sel), ph = phaseOf(sel);
+    let tot = 0, fin = 0;
+    const strip = dates.map(d => {
+      const dd = dayOf(d), n = dd.picks.length, f = dd.picks.filter(k => isDone(dd, k)).length;
+      tot += n; fin += f;
+      const label = fmt(d, { weekday: 'long', month: 'long', day: 'numeric' }) + (n ? ', ' + f + ' of ' + n + ' done' : ', nothing picked');
+      return '<button class="day ' + (d === TODAY ? 'today' : '') + '" data-act="day" data-d="' + d + '" aria-pressed="' + (d === sel) + '" aria-label="' + esc(label) + '">' +
+        '<span class="dow">' + fmt(d, { weekday: 'narrow' }) + '</span><span class="num">' + parse(d).getDate() + '</span>' +
+        '<span class="pips"><i style="width:' + (n ? Math.round(f / n * 100) : 0) + '%"></i></span></button>';
+    }).join('');
+    const emptyDays = dates.filter(d => !dayOf(d).picks.length).length;
+    const auto = day.picks.find(k => !isDone(day, k));
+
+    let list;
+    if (day.picks.length) {
+      list = '<ul>' + day.picks.map(k => rowWorkout(sel, k, auto)).join('') + '</ul>';
+    } else {
+      const sug = suggested(sel);
+      list = '<p class="suggest-title">Suggested for ' + fmt(sel, { weekday: 'long' }) + '</p><div>' +
+        sug.map(k => {
+          const w = W[k];
+          return '<div class="sug"><div><span class="wk-title">' + esc(w.name) + '</span><span class="wk-meta">' + esc(metaOf(w)) + '</span></div>' +
+            '<button class="btn small" data-act="pick" data-key="' + k + '" aria-label="Add ' + esc(w.name) + '">Add</button></div>';
+        }).join('') + '</div>';
+    }
+    const armed = UI.arm === 'clear';
+    const acts = (day.picks.length ? '' : '<button class="btn pri" data-act="use-sug">Use this plan</button>') +
+      '<button class="btn ' + (day.picks.length ? 'pri' : '') + '" data-act="go-lib">' + (day.picks.length ? 'Add a workout' : 'Pick my own') + '</button>' +
+      (day.picks.length ? '<button class="btn ' + (armed ? 'danger' : '') + '" data-act="clear">' + (armed ? 'Tap again to clear' : 'Clear day') + '</button>' : '');
+
+    const backs = [['good', 'Good', 'g'], ['sore', 'Sore', ''], ['hurts', 'Hurts', 'r']].map(b =>
+      '<button class="chip ' + b[2] + '" data-act="back" data-v="' + b[0] + '" aria-pressed="' + (day.back === b[0]) + '">' + b[1] + '</button>').join('');
+
+    return '<section><div class="weekbar">' +
+      '<button class="arrow" data-act="shift" data-n="-7" aria-label="Previous week">‹</button>' +
+      '<p>' + short(dates[0]) + ' to ' + short(dates[6]) + '<small>' + (tot ? fin + ' of ' + tot + ' workouts done' : 'No workouts picked yet') + '</small></p>' +
+      '<button class="arrow" data-act="shift" data-n="7" aria-label="Next week">›</button></div>' +
+      '<div class="strip">' + strip + '</div>' +
+      '<div class="below-strip">' +
+      (emptyDays ? '<button class="btn" data-act="fill">Fill ' + emptyDays + (emptyDays === 1 ? ' empty day' : ' empty days') + ' with the suggested plan</button>' : '') +
+      (sel !== TODAY ? '<button class="btn" data-act="today">Back to today</button>' : '') + '</div></section>' +
+      backNotice() +
+      '<section class="panel"><div class="panel-head"><h2>' + esc(fmt(sel, { weekday: 'long', month: 'short', day: 'numeric' })) + '</h2><span class="tag">' + esc(ph.name) + '</span></div>' +
+      list + '<div class="actions">' + acts + '</div></section>' +
+      '<section class="panel"><div class="panel-head"><h2>Day log</h2></div><div class="pad fields">' +
+      '<div class="two"><div class="field"><label for="day-weight">Weight (lb)</label><input class="input" id="day-weight" type="number" inputmode="decimal" step="0.1" min="60" max="400" placeholder="154.0" data-in="weight" value="' + esc(day.weight == null ? '' : day.weight) + '"></div>' +
+      '<div class="field"><span class="lbl">Back and neck</span><div class="chips">' + backs + '</div></div></div>' +
+      '<div class="field"><label for="day-note">Notes</label><textarea class="input" id="day-note" data-in="note" placeholder="Weights used, what worked, how you felt">' + esc(day.note) + '</textarea></div>' +
+      '</div></section>';
+  }
+
+  function vWorkouts() {
+    const sel = UI.date, day = dayOf(sel), nowKeys = new Set([].concat.apply([], WEEKS[phaseOf(sel).week]));
+    const filters = [['all', 'All']].concat(Object.keys(CATS).map(k => [k, CATS[k]])).map(f =>
+      '<button class="chip" data-act="filter" data-v="' + f[0] + '" aria-pressed="' + (UI.filter === f[0]) + '">' + f[1] + '</button>').join('');
+    const groups = Object.keys(CATS).filter(c => UI.filter === 'all' || UI.filter === c).map(c => {
+      const cards = Object.keys(W).filter(k => W[k].cat === c).map(k => {
+        const w = W[k], on = day.picks.indexOf(k) >= 0;
+        return '<article class="panel lib"><div class="lib-top"><div><h3>' + esc(w.name) + (nowKeys.has(k) ? '<span class="now-tag">This phase</span>' : '') + '</h3>' +
+          '<p class="sum">' + esc([w.min ? w.min + ' min' : null, w.sum].filter(Boolean).join(' · ')) + '</p></div>' +
+          '<button class="btn small ' + (on ? 'good' : 'pri') + '" data-act="toggle-pick" data-key="' + k + '" aria-pressed="' + on + '" aria-label="' + (on ? 'Remove ' : 'Add ') + esc(w.name) + '">' + (on ? 'Added' : 'Add') + '</button></div>' +
+          (w.items.length ? '<ul>' + w.items.map(t => '<li>' + esc(t) + '</li>').join('') + '</ul>' : '') + '</article>';
+      }).join('');
+      return '<section class="lib-group"><h2 class="group-title">' + CATS[c] + '</h2><div class="lib-list">' + cards + '</div></section>';
+    }).join('');
+    const count = day.picks.length;
+    return '<section class="panel pad lib-tools">' +
+      '<div class="field"><label for="wk-date">Adding to</label><input class="input" id="wk-date" type="date" data-chg="wkdate" value="' + sel + '"></div>' +
+      '<div class="chips" role="group" aria-label="Filter workouts">' + filters + '</div>' +
+      '<div class="below-strip" style="margin-top:0"><button class="btn" data-act="tab" data-t="train">See ' + esc(dayLabel(sel)) + (count ? ' (' + count + ')' : '') + '</button></div>' +
+      '</section>' + groups +
+      '<section class="panel pad"><form class="add-own" data-form="custom"><div class="field"><label for="custom-name">Add your own</label><input class="input" id="custom-name" maxlength="60" placeholder="Morning run, 20 min"></div><button class="btn pri" type="submit">Add</button></form></section>';
+  }
+
+  function vLog() {
+    const list = Object.keys(S.tds).map(id => Object.assign({ id: id }, S.tds[id]))
+      .sort((a, b) => b.date.localeCompare(a.date) || (a.at || 0) - (b.at || 0));
+    const scored = list.filter(t => t.side === 'for').length, given = list.length - scored;
+    const groups = {};
+    list.forEach(t => {
+      const k = t.date + '|' + (t.opp || '').trim().toLowerCase();
+      (groups[k] = groups[k] || { date: t.date, opp: (t.opp || '').trim(), rows: [] }).rows.push(t);
+    });
+    const matchCount = Object.keys(groups).length;
+    const c = {};
+    list.filter(t => t.side === 'against').forEach(t => { c[t.how] = (c[t.how] || 0) + 1; });
+    const top = Object.keys(c).sort((a, b) => c[b] - c[a])[0];
+    const leak = top
+      ? '<div class="leak"><strong>' + (matchCount >= 5 ? 'Biggest leak: ' : 'Biggest leak so far: ') + esc(top) + ' (' + c[top] + ')</strong>' + esc(FIX[top] || FIX.Other) + '</div>'
+      : '<div class="leak">Log 5 matches and this will show where you give up the most takedowns and what to drill.</div>';
+
+    const f = UI.form;
+    const sides = '<button type="button" class="chip g" data-act="side" data-v="for" aria-pressed="' + (f.side === 'for') + '">I scored</button>' +
+      '<button type="button" class="chip r" data-act="side" data-v="against" aria-pressed="' + (f.side === 'against') + '">They scored</button>';
+    const hows = HOW[f.side].map(h => '<button type="button" class="chip" data-act="how" data-v="' + esc(h) + '" aria-pressed="' + (f.how === h) + '">' + esc(h) + '</button>').join('');
+
+    const matches = Object.keys(groups).sort((a, b) => groups[b].date.localeCompare(groups[a].date)).map(k => {
+      const g = groups[k];
+      return '<div class="match"><h3>' + esc(g.opp || 'Match') + ' <small>' + esc(dayLabel(g.date)) + '</small></h3>' +
+        g.rows.map(t => '<div class="td"><span class="pt ' + (t.side === 'for' ? 'for' : 'against') + '">T3</span><div>' + esc(t.how) + (t.note ? '<small>' + esc(t.note) + '</small>' : '') + '</div>' +
+          '<button class="btn small ' + (UI.arm === t.id ? 'danger' : '') + '" data-act="del-td" data-id="' + esc(t.id) + '">' + (UI.arm === t.id ? 'Confirm' : 'Delete') + '</button></div>').join('') + '</div>';
+    }).join('');
+
+    const weights = Object.keys(S.days).filter(d => S.days[d].weight != null).sort().reverse();
+    let wt = '<div class="empty-note">Add your weight on the Train tab and it will show up here.</div>';
+    if (weights.length) {
+      const latest = S.days[weights[0]].weight, gap = Math.round((157 - latest) * 10) / 10;
+      const status = gap > 0 ? gap + ' lb under 157' : (gap < 0 ? Math.abs(gap) + ' lb over 157' : 'Right at 157');
+      wt = '<div class="score" style="grid-template-columns:repeat(2,minmax(0,1fr))"><div><b>' + esc(latest) + '</b><span>Latest, ' + esc(short(weights[0])) + '</span></div><div><b>' + esc(Math.abs(gap)) + '</b><span>' + esc(status) + '</span></div></div>' +
+        weights.slice(0, 6).map(d => '<div class="wt-row"><span>' + esc(dayLabel(d)) + '</span><span>' + esc(S.days[d].weight) + ' lb</span></div>').join('');
+    }
+
+    return '<section class="panel"><div class="panel-head"><h2>Takedowns</h2></div><div class="score">' +
+      '<div class="g"><b>' + scored + '</b><span>Scored</span></div><div class="r"><b>' + given + '</b><span>Given up</span></div><div><b>' + matchCount + '</b><span>of 5 matches logged</span></div></div>' + leak + '</section>' +
+      '<section class="panel"><div class="panel-head"><h2>Add a takedown</h2></div><form class="pad fields" data-form="td">' +
+      '<div class="two"><div class="field"><label for="td-date">Date</label><input class="input" id="td-date" type="date" data-in="f:date" value="' + esc(f.date) + '"></div>' +
+      '<div class="field"><label for="td-opp">Opponent</label><input class="input" id="td-opp" maxlength="60" data-in="f:opp" placeholder="Name or school" value="' + esc(f.opp) + '"></div></div>' +
+      '<div class="field"><span class="lbl">Who scored</span><div class="chips">' + sides + '</div></div>' +
+      '<div class="field"><span class="lbl">How it happened</span><div class="chips">' + hows + '</div></div>' +
+      '<div class="field"><label for="td-note">Note</label><input class="input" id="td-note" maxlength="120" data-in="f:note" placeholder="Optional" value="' + esc(f.note) + '"></div>' +
+      '<div><button class="btn pri" type="submit">Add takedown</button></div></form></section>' +
+      (matches ? '<section class="panel"><div class="panel-head"><h2>Matches</h2></div><div>' + matches + '</div></section>' : '') +
+      '<section class="panel"><div class="panel-head"><h2>Weight</h2></div>' + wt + '</section>';
+  }
+
+  const VIEWS = { train: vTrain, workouts: vWorkouts, log: vLog };
+
+  function paint(fromSync) {
+    if (fromSync) {
+      if (UI.tab === 'plan') return;
+      const a = document.activeElement;
+      if (a && /^(INPUT|TEXTAREA)$/.test(a.tagName) && a.type !== 'checkbox') { needsPaint = true; return; }
+    }
+    const isPlan = UI.tab === 'plan';
+    $('plan').hidden = !isPlan;
+    $('view').hidden = isPlan;
+    if (!isPlan) $('view').innerHTML = VIEWS[UI.tab]();
+    document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab === UI.tab)));
+  }
+
+  /* ---------- Actions ---------- */
+  function addPick(key) {
+    const d = ensureDay(UI.date);
+    if (d.picks.indexOf(key) < 0) d.picks.push(key);
+    touch(UI.date);
+  }
+  function removePick(key) {
+    const d = ensureDay(UI.date);
+    d.picks = d.picks.filter(k => k !== key);
+    if (d.ticks) delete d.ticks[key];
+    touch(UI.date);
+  }
+  function setTab(t) {
+    UI.tab = t; UI.arm = null;
+    paint();
+    window.scrollTo(0, 0);
+  }
+  let armTimer = null;
+  function arm(v) {
+    UI.arm = v;
+    clearTimeout(armTimer);
+    armTimer = setTimeout(() => { UI.arm = null; paint(true); }, 3000);
+    paint();
+  }
+
+  const A = {
+    day(b) { UI.date = b.dataset.d; UI.arm = null; paint(); },
+    today() { UI.date = TODAY; paint(); },
+    shift(b) { UI.date = addDays(UI.date, Number(b.dataset.n)); paint(); },
+    tab(b) { setTab(b.dataset.t); },
+    exp(b) {
+      const key = b.dataset.key, id = UI.date + '|' + key;
+      const day = dayOf(UI.date), auto = day.picks.find(k => !isDone(day, k));
+      UI.exp[id] = !(id in UI.exp ? UI.exp[id] : key === auto);
+      paint();
+    },
+    rm(b) { removePick(b.dataset.key); paint(); },
+    pick(b) { addPick(b.dataset.key); paint(); },
+    'toggle-pick'(b) {
+      const k = b.dataset.key;
+      if (dayOf(UI.date).picks.indexOf(k) >= 0) { removePick(k); toast('Removed from ' + dayLabel(UI.date)); }
+      else { addPick(k); toast('Added to ' + dayLabel(UI.date)); }
+      paint();
+    },
+    'use-sug'() {
+      ensureDay(UI.date).picks = suggested(UI.date).slice();
+      touch(UI.date);
+      paint();
+    },
+    'go-lib'() { setTab('workouts'); },
+    clear() {
+      if (UI.arm !== 'clear') { arm('clear'); return; }
+      const d = ensureDay(UI.date);
+      d.picks = []; d.ticks = {};
+      UI.arm = null;
+      touch(UI.date);
+      paint();
+    },
+    fill() {
+      const mon = monday(UI.date);
+      let n = 0;
+      for (let i = 0; i < 7; i++) {
+        const d = addDays(mon, i);
+        if (!dayOf(d).picks.length) { ensureDay(d).picks = suggested(d).slice(); touch(d); n++; }
+      }
+      paint();
+      toast('Filled ' + n + (n === 1 ? ' day' : ' days') + '. Days you already picked stayed the same.');
+    },
+    back(b) {
+      const d = ensureDay(UI.date), v = b.dataset.v;
+      d.back = d.back === v ? null : v;
+      touch(UI.date);
+      paint();
+    },
+    filter(b) { UI.filter = b.dataset.v; paint(); },
+    side(b) {
+      UI.form.side = b.dataset.v;
+      UI.form.how = HOW[b.dataset.v][0];
+      paint();
+    },
+    how(b) { UI.form.how = b.dataset.v; paint(); },
+    'del-td'(b) {
+      const id = b.dataset.id;
+      if (UI.arm !== id) { arm(id); return; }
+      UI.arm = null;
+      delete S.tds[id];
+      delTd(id);
+      paint();
+      toast('Takedown deleted');
+    }
+  };
+
+  const CHANGE = {
+    tick(t) {
+      const key = t.dataset.key, i = Number(t.dataset.i), d = ensureDay(UI.date);
+      d.ticks = d.ticks || {};
+      const list = (d.ticks[key] || []).filter(x => x !== i);
+      if (t.checked) list.push(i);
+      d.ticks[key] = list;
+      touch(UI.date);
+      paint();
+    },
+    all(t) {
+      const key = t.dataset.key, d = ensureDay(UI.date);
+      d.ticks = d.ticks || {};
+      d.ticks[key] = t.checked ? Array.from({ length: total(key) }, (_, i) => i) : [];
+      touch(UI.date);
+      paint();
+    },
+    wkdate(t) { if (t.value) { UI.date = t.value; paint(); } }
+  };
+
+  const INPUT = {
+    weight(t) {
+      const d = ensureDay(UI.date), n = parseFloat(t.value);
+      d.weight = isFinite(n) ? n : null;
+      touch(UI.date);
+    },
+    note(t) { ensureDay(UI.date).note = t.value; touch(UI.date); }
+  };
+
+  document.addEventListener('click', e => {
+    const tab = e.target.closest('[data-tab]');
+    if (tab) { setTab(tab.dataset.tab); return; }
+    const b = e.target.closest('[data-act]');
+    if (b && A[b.dataset.act]) A[b.dataset.act](b, e);
+  });
+  document.addEventListener('change', e => {
+    const c = e.target.dataset && e.target.dataset.chg;
+    if (c && CHANGE[c]) CHANGE[c](e.target);
+  });
+  document.addEventListener('input', e => {
+    const k = e.target.dataset && e.target.dataset.in;
+    if (!k) return;
+    if (k.indexOf('f:') === 0) UI.form[k.slice(2)] = e.target.value;
+    else if (INPUT[k]) INPUT[k](e.target);
+  });
+  document.addEventListener('focusout', () => {
+    setTimeout(() => {
+      const a = document.activeElement;
+      if (needsPaint && !(a && /^(INPUT|TEXTAREA)$/.test(a.tagName))) { needsPaint = false; paint(); }
+    }, 150);
+  });
+  document.addEventListener('submit', e => {
+    e.preventDefault();
+    const kind = e.target.dataset.form;
+    if (kind === 'custom') {
+      const name = $('custom-name').value.trim();
+      if (!name) { toast('Type a workout name first.'); return; }
+      addPick('custom:' + name);
+      paint();
+      toast('Added to ' + dayLabel(UI.date));
+    } else if (kind === 'td') {
+      const f = UI.form;
+      if (!f.date) { toast('Pick a date first.'); return; }
+      const id = 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      S.tds[id] = { date: f.date, opp: f.opp.trim(), side: f.side, how: f.how, note: f.note.trim(), at: Date.now() };
+      saveTd(id);
+      f.note = '';
+      paint();
+      toast(f.side === 'for' ? 'Takedown added for you' : 'Takedown added against you');
+    }
+  });
+
+  /* ---------- Start ---------- */
+  loadLocal();
+  const h = (location.hash || '').slice(1);
+  if (h === 'train' || h === 'workouts' || h === 'plan' || h === 'log') UI.tab = h;
+  paintHeader();
+  paintPlanTables();
+  setSync('local');
+  paint();
+  connect();
+})();
+</script>
+<script>
+(function () {
+  if ('serviceWorker' in navigator) {
+    addEventListener('load', function () { navigator.serviceWorker.register('./sw.js').catch(function () {}); });
+  }
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {});
+  var standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+  if (standalone) return;
+  var ua = navigator.userAgent, box = document.getElementById('install');
+  if (/iPhone|iPad|iPod/.test(ua)) box.textContent = 'To install: open this in Safari, tap Share, then tap Add to Home Screen.';
+  else if (/Android/.test(ua)) box.textContent = 'To install: open the menu in Chrome, then tap Install app or Add to Home screen.';
+  else box.textContent = 'Open this link on your phone to install it.';
+  box.hidden = false;
+})();
+</script>
+</body>
+</html>
